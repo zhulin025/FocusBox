@@ -91,7 +91,7 @@ class MouseMonitor {
     
     private func handleMouseDragged(_ event: NSEvent) {
         log("➡️ handleMouseDragged 被调用，isDragging=\(isDragging)")
-        guard isDragging, let overlay = overlayWindow else {
+        guard isDragging, let overlay = overlayWindow, let delegate = delegate else {
             log("⚠️ 跳过绘制：isDragging=\(isDragging), overlay=\(overlayWindow != nil ? "存在" : "nil")")
             return
         }
@@ -104,13 +104,13 @@ class MouseMonitor {
         // 只在矩形大小变化时重绘（性能优化）
         if rect.width > 10 && rect.height > 10 {
             log("🎨 绘制矩形...")
-            overlay.drawRect(rect)
+            overlay.drawRect(rect, borderWidth: delegate.borderWidth, theme: delegate.colorTheme)
         }
     }
     
     private func handleMouseUp(_ event: NSEvent) {
         log("⬆️ handleMouseUp 被调用")
-        guard isDragging, let overlay = overlayWindow else { return }
+        guard isDragging, let overlay = overlayWindow, let delegate = delegate else { return }
         
         isDragging = false
         let currentLocation = NSEvent.mouseLocation
@@ -121,7 +121,7 @@ class MouseMonitor {
         // 只有足够大的矩形才显示
         if rect.width > 10 && rect.height > 10 {
             log("🎨 绘制并准备隐藏...")
-            overlay.drawRect(rect)
+            overlay.drawRect(rect, borderWidth: delegate.borderWidth, theme: delegate.colorTheme)
             // 1 秒后自动隐藏
             overlay.hideRect()
         }

@@ -12,6 +12,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyMonitor: Any?
     var isEnabled = true
     
+    // 用户设置
+    var borderWidth: CGFloat = 4.0
+    var colorTheme: ColorTheme = .rainbow
+    var fadeDelay: TimeInterval = 1.0
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("🚀 FocusBox 启动中...")
         
@@ -135,10 +140,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 使用 SwiftUI 创建设置界面
         let contentView = SettingsView(
             isActive: isEnabled,
+            borderWidth: borderWidth,
+            colorTheme: colorTheme,
             onToggle: { [weak self] active in
                 if self?.isEnabled != active {
                     self?.toggleEnabled()
                 }
+            },
+            onBorderWidthChange: { [weak self] width in
+                self?.borderWidth = width
+                print("📏 边框粗细：\(width)")
+            },
+            onThemeChange: { [weak self] theme in
+                self?.colorTheme = theme
+                print("🎨 颜色主题：\(theme.rawValue)")
             },
             onQuit: { [weak self] in
                 self?.quitApp()
@@ -171,7 +186,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 // SwiftUI 设置界面
 struct SettingsView: View {
     var isActive: Bool
+    var borderWidth: CGFloat
+    var colorTheme: ColorTheme
     var onToggle: (Bool) -> Void
+    var onBorderWidthChange: (CGFloat) -> Void
+    var onThemeChange: (ColorTheme) -> Void
     var onQuit: () -> Void
     
     var body: some View {
@@ -199,6 +218,40 @@ struct SettingsView: View {
                 ))
                 .toggleStyle(.switch)
             }
+            
+            // 边框粗细
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("边框粗细：\(Int(borderWidth))px")
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+                Slider(value: Binding(
+                    get: { Double(borderWidth) },
+                    set: { onBorderWidthChange(CGFloat($0)) }
+                ), in: 2...20, step: 1)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(8)
+            
+            // 颜色主题
+            VStack(alignment: .leading, spacing: 8) {
+                Text("颜色主题")
+                    .fontWeight(.medium)
+                Picker("主题", selection: Binding(
+                    get: { colorTheme },
+                    set: { onThemeChange($0) }
+                )) {
+                    ForEach(ColorTheme.allCases, id: \.self) { theme in
+                        Text(theme.rawValue).tag(theme)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(8)
             
             // 使用说明
             VStack(alignment: .leading, spacing: 8) {
@@ -230,17 +283,49 @@ struct SettingsView: View {
             }
         }
         .padding(30)
-        .frame(width: 320, height: 280)
+        .frame(width: 350, height: 420)
     }
 }
 
 // 鼠标监听器代理协议
 protocol MouseMonitorDelegate: AnyObject {
     var isEnabled: Bool { get }
+    var borderWidth: CGFloat { get }
+    var colorTheme: ColorTheme { get }
     func toggleEnabled()
 }
 
 extension AppDelegate: MouseMonitorDelegate {}
+
+// 颜色主题
+enum ColorTheme: String, CaseIterable {
+    case rainbow = "🌈 彩虹"
+    case ocean = "🌊 海洋"
+    case sunset = "🌅 日落"
+    case forest = "🌲 森林"
+    case monochrome = "⚫ 单色"
+    
+    var colors: [NSColor] {
+        switch self {
+        case .rainbow:
+            return [NSColor.red, NSColor.orange, NSColor.yellow, NSColor.green, NSColor.blue, NSColor.purple]
+        case .ocean:
+            return [NSColor(red: 0.0, green: 0.4, blue: 0.6, alpha: 1.0),
+                    NSColor(red: 0.0, green: 0.6, blue: 0.8, alpha: 1.0),
+                    NSColor(red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)]
+        case .sunset:
+            return [NSColor(red: 1.0, green: 0.4, blue: 0.0, alpha: 1.0),
+                    NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0),
+                    NSColor(red: 1.0, green: 0.8, blue: 0.4, alpha: 1.0)]
+        case .forest:
+            return [NSColor(red: 0.2, green: 0.5, blue: 0.2, alpha: 1.0),
+                    NSColor(red: 0.4, green: 0.7, blue: 0.3, alpha: 1.0),
+                    NSColor(red: 0.6, green: 0.8, blue: 0.4, alpha: 1.0)]
+        case .monochrome:
+            return [NSColor.black, NSColor.darkGray, NSColor.gray]
+        }
+    }
+}
 
 // 手动创建 main 入口
 @main

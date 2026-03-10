@@ -55,7 +55,7 @@ class OverlayWindow: NSWindow {
         print("✅ OverlayWindow 已显示")
     }
     
-    func drawRect(_ rect: NSRect, color: NSColor = NSColor.systemBlue) {
+    func drawRect(_ rect: NSRect, color: NSColor = NSColor.systemBlue, borderWidth: CGFloat = 4.0, theme: ColorTheme = .rainbow) {
         guard let screen = NSScreen.main else {
             print("⚠️ 没有主屏幕")
             return
@@ -69,9 +69,11 @@ class OverlayWindow: NSWindow {
             height: rect.height
         )
         
-        print("🎨 绘制矩形 - 输入：\(rect), 窗口：\(windowRect)")
+        print("🎨 绘制矩形 - 输入：\(rect), 窗口：\(windowRect), 边框：\(borderWidth)px, 主题：\(theme.rawValue)")
         overlayView?.startRect = windowRect
         overlayView?.boxColor = color
+        overlayView?.borderWidth = borderWidth
+        overlayView?.colorTheme = theme
         overlayView?.gradientColors = []  // 清空渐变，生成新颜色
         overlayView?.needsDisplay = true
     }
@@ -84,6 +86,8 @@ class OverlayWindow: NSWindow {
 class OverlayView: NSView {
     var startRect: NSRect = .zero
     var boxColor: NSColor = NSColor.systemBlue
+    var borderWidth: CGFloat = 4.0
+    var colorTheme: ColorTheme = .rainbow
     var gradientColors: [NSColor] = []
     private var fadeTimer: Timer?
     private var boxAlpha: CGFloat = 1.0
@@ -100,17 +104,17 @@ class OverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard startRect.width > 0 && startRect.height > 0 else { return }
         
-        // 生成渐变颜色（如果没有预设）
+        // 使用主题颜色生成渐变
         if gradientColors.isEmpty {
-            gradientColors = generateRandomGradient(baseColor: boxColor)
+            gradientColors = colorTheme.colors
         }
         
         // 绘制渐变边框
         let path = NSBezierPath(rect: startRect)
-        path.lineWidth = 4
+        path.lineWidth = borderWidth
         
         // 使用渐变描边
-        drawGradientStroke(path: path, colors: gradientColors, alpha: alphaValue)
+        drawGradientStroke(path: path, colors: gradientColors, alpha: alphaValue, lineWidth: borderWidth)
         
         // 绘制半透明填充
         let fillPath = NSBezierPath(rect: startRect)
@@ -133,15 +137,15 @@ class OverlayView: NSView {
     }
     
     /// 绘制渐变边框
-    private func drawGradientStroke(path: NSBezierPath, colors: [NSColor], alpha: CGFloat) {
+    private func drawGradientStroke(path: NSBezierPath, colors: [NSColor], alpha: CGFloat, lineWidth: CGFloat) {
         guard colors.count >= 2, let context = NSGraphicsContext.current?.cgContext else {
             colors.first?.withAlphaComponent(alpha).setStroke()
+            path.lineWidth = lineWidth
             path.stroke()
             return
         }
         
         let rect = path.bounds
-        let lineWidth: CGFloat = 4
         
         // 保存图形状态
         context.saveGState()
