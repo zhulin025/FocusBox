@@ -31,7 +31,8 @@ swiftc \
     -framework SwiftUI \
     "$PROJECT_DIR/FocusBoxApp.swift" \
     "$PROJECT_DIR/OverlayWindow.swift" \
-    "$PROJECT_DIR/MouseMonitor.swift"
+    "$PROJECT_DIR/MouseMonitor.swift" \
+    "$PROJECT_DIR/ScreenRecorder.swift"
 
 # 创建 Info.plist
 cat > "$APP_PATH/Contents/Info.plist" << 'EOF'

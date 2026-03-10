@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayWindow: OverlayWindow?
     private var mouseMonitor: MouseMonitor?
     private var settingsWindow: NSWindow?
+    private var screenRecorder: ScreenRecorder?
     
     // 全局快捷键监听
     private var hotKeyMonitor: Any?
@@ -16,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var borderWidth: CGFloat = 4.0
     var colorTheme: ColorTheme = .rainbow
     var fadeDelay: TimeInterval = 1.0
+    var enableRecording = false  // 是否启用录制功能
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("🚀 FocusBox 启动中...")
@@ -28,15 +30,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayWindow = OverlayWindow()
         print("✅ 覆盖窗口已创建")
         
+        // 创建屏幕录制器
+        screenRecorder = ScreenRecorder()
+        print("✅ 屏幕录制器已初始化")
+        
         // 创建鼠标/触摸板监听器
         if let overlay = overlayWindow {
             mouseMonitor = MouseMonitor(overlayWindow: overlay, delegate: self)
             print("✅ 鼠标监听器已创建")
         }
         
-        // 注册全局快捷键 (Command + Shift + F)
+        // 注册全局快捷键
         setupHotKey()
-        print("✅ 快捷键已注册 (⌘+⇧+F)")
+        print("✅ 快捷键已注册 (⌘+⇧+F 切换，⌘+⇧+R 录制)")
         
         // 显示设置窗口
         showSettingsWindow()
@@ -50,11 +56,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupHotKey() {
         hotKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            // Command + Shift + F
+            // Command + Shift + F - 切换启用/禁用
             if event.modifierFlags.contains(.command) && 
                event.modifierFlags.contains(.shift) && 
                event.keyCode == 3 {  // F 键
                 self?.toggleEnabled()
+            }
+            // Command + Shift + R - 开始/停止录制
+            if event.modifierFlags.contains(.command) && 
+               event.modifierFlags.contains(.shift) && 
+               event.keyCode == 15 {  // R 键
+                self?.toggleRecording()
+            }
+        }
+    }
+    
+    @objc func toggleRecording() {
+        guard let recorder = screenRecorder else { return }
+        
+        if recorder.isRecordingStatus {
+            // 停止录制
+            recorder.stopRecording()
+            print("⏹️ 录制已停止")
+        } else {
+            // 开始录制 - 录制整个屏幕
+            if let screen = NSScreen.main {
+                let outputDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                let outputUrl = outputDir?.appendingPathComponent("FocusBox_\(Date().timeIntervalSince1970).mp4")
+                
+                if let url = outputUrl {
+                    recorder.startRecording(rect: screen.frame, outputUrl: url)
+                    print("🎬 录制已开始：\(url.path)")
+                    
+                    // 发送通知
+                    sendRecordingNotification(started: true)
+                }
+            }
+        }
+    }
+    
+    private func sendRecordingNotification(started: Bool) {
+        if #available(macOS 10.14, *) {
+            let notification = UNUserNotificationCenter.current()
+            notification.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                if granted {
+                    let content = UNMutableNotificationContent()
+                    content.title = "FocusBox 录制"
+                    content.body = started ? "🎬 录制已开始" : "✅ 录制已保存"
+                    content.sound = .default
+                    
+                    let request = UNNotificationRequest(identifier: "focusbox_recording", content: content, trigger: nil)
+                    notification.add(request)
+                }
             }
         }
     }
@@ -261,7 +314,11 @@ struct SettingsView: View {
                 Text("• 会绘制彩色矩形框")
                 Text("• 松开后 1 秒自动消失")
                 Divider()
-                Text("⌨️ 快捷键：⌘+⇧+F 启用/暂停")
+                Text("⌨️ 快捷键：")
+                    .fontWeight(.medium)
+                Text("  ⌘+⇧+F 启用/暂停")
+                    .foregroundColor(.blue)
+                Text("  ⌘+⇧+R 开始/停止录制")
                     .foregroundColor(.blue)
             }
             .font(.caption)
@@ -283,7 +340,7 @@ struct SettingsView: View {
             }
         }
         .padding(30)
-        .frame(width: 350, height: 420)
+        .frame(width: 350, height: 450)
     }
 }
 
