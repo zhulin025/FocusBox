@@ -1,11 +1,16 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var overlayWindow: OverlayWindow?
     private var mouseMonitor: MouseMonitor?
     private var settingsWindow: NSWindow?
+    
+    // 全局快捷键监听
+    private var hotKeyMonitor: Any?
+    var isEnabled = true
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("🚀 FocusBox 启动中...")
@@ -20,9 +25,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // 创建鼠标/触摸板监听器
         if let overlay = overlayWindow {
-            mouseMonitor = MouseMonitor(overlayWindow: overlay)
+            mouseMonitor = MouseMonitor(overlayWindow: overlay, delegate: self)
             print("✅ 鼠标监听器已创建")
         }
+        
+        // 注册全局快捷键 (Command + Shift + F)
+        setupHotKey()
+        print("✅ 快捷键已注册 (⌘+⇧+F)")
         
         // 显示设置窗口
         showSettingsWindow()
@@ -32,6 +41,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // 激活应用，确保窗口显示
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    private func setupHotKey() {
+        hotKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            // Command + Shift + F
+            if event.modifierFlags.contains(.command) && 
+               event.modifierFlags.contains(.shift) && 
+               event.keyCode == 3 {  // F 键
+                self?.toggleEnabled()
+            }
+        }
+    }
+    
+    @objc func toggleEnabled() {
+        isEnabled.toggle()
+        print("🔌 FocusBox 已\(isEnabled ? "启用" : "禁用")")
+        
+        // 更新状态栏图标
+        if let button = statusItem?.button {
+            if isEnabled {
+                button.image = NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: "FocusBox")
+                button.title = ""
+            } else {
+                button.image = NSImage(systemSymbolName: "rectangle.dashed.badge.xmark", accessibilityDescription: "FocusBox Disabled")
+                button.title = "⏸️"
+            }
+        }
+        
+        // 通知鼠标监听器
+        mouseMonitor?.setEnabled(isEnabled)
+        
+        // 发送通知
+        sendNotification(enabled: isEnabled)
+    }
+    
+    private func sendNotification(enabled: Bool) {
+        // macOS 10.14+ 使用 UserNotifications
+        if #available(macOS 10.14, *) {
+            let notification = UNUserNotificationCenter.current()
+            notification.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                if granted {
+                    let content = UNMutableNotificationContent()
+                    content.title = "FocusBox"
+                    content.body = enabled ? "已启用 - 可以绘制矩形框" : "已暂停 - 按 ⌘+⇧+F 重新启用"
+                    content.sound = .default
+                    
+                    let request = UNNotificationRequest(identifier: "focusbox_toggle", content: content, trigger: nil)
+                    notification.add(request)
+                }
+            }
+        }
     }
     
     private func setupStatusItem() {
@@ -74,8 +134,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // 使用 SwiftUI 创建设置界面
         let contentView = SettingsView(
-            isActive: true,
-            onToggle: { _ in },
+            isActive: isEnabled,
+            onToggle: { [weak self] active in
+                if self?.isEnabled != active {
+                    self?.toggleEnabled()
+                }
+            },
             onQuit: { [weak self] in
                 self?.quitApp()
             }
@@ -121,13 +185,19 @@ struct SettingsView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            // 状态指示
+            // 状态指示和开关
             HStack {
                 Circle()
                     .fill(isActive ? Color.green : Color.red)
                     .frame(width: 10, height: 10)
                 Text(isActive ? "运行中" : "已暂停")
                     .foregroundColor(.secondary)
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { isActive },
+                    set: { onToggle($0) }
+                ))
+                .toggleStyle(.switch)
             }
             
             // 使用说明
@@ -137,6 +207,9 @@ struct SettingsView: View {
                 Text("• 按住鼠标左键或触摸板拖动")
                 Text("• 会绘制彩色矩形框")
                 Text("• 松开后 1 秒自动消失")
+                Divider()
+                Text("⌨️ 快捷键：⌘+⇧+F 启用/暂停")
+                    .foregroundColor(.blue)
             }
             .font(.caption)
             .foregroundColor(.secondary)
@@ -160,6 +233,14 @@ struct SettingsView: View {
         .frame(width: 320, height: 280)
     }
 }
+
+// 鼠标监听器代理协议
+protocol MouseMonitorDelegate: AnyObject {
+    var isEnabled: Bool { get }
+    func toggleEnabled()
+}
+
+extension AppDelegate: MouseMonitorDelegate {}
 
 // 手动创建 main 入口
 @main

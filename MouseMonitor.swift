@@ -3,18 +3,26 @@ import Foundation
 
 class MouseMonitor {
     private weak var overlayWindow: OverlayWindow?
+    private weak var delegate: MouseMonitorDelegate?
     private var isDragging = false
     private var startPoint: NSPoint = .zero
     private var leftMouseDownMonitor: Any?
     private var leftMouseUpMonitor: Any?
     private var leftMouseDraggedMonitor: Any?
     private let logFile: URL
+    var isEnabled: Bool = true
     
-    init(overlayWindow: OverlayWindow) {
+    init(overlayWindow: OverlayWindow, delegate: MouseMonitorDelegate?) {
         self.overlayWindow = overlayWindow
+        self.delegate = delegate
         self.logFile = URL(fileURLWithPath: "/tmp/focusbox.log")
         log("🚀 MouseMonitor 初始化")
         setupEventMonitors()
+    }
+    
+    func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+        log("🔌 MouseMonitor 已\(enabled ? "启用" : "禁用")")
     }
     
     private func log(_ message: String) {
@@ -70,6 +78,11 @@ class MouseMonitor {
     }
     
     private func handleMouseDown(_ event: NSEvent) {
+        guard isEnabled else {
+            log("⚠️ 跳过：MouseMonitor 已禁用")
+            return
+        }
+        
         log("⬇️ handleMouseDown 被调用")
         isDragging = true
         startPoint = NSEvent.mouseLocation

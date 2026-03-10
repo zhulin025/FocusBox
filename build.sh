@@ -15,6 +15,12 @@ echo "🔨 构建 FocusBox..."
 mkdir -p "$APP_PATH/Contents/MacOS"
 mkdir -p "$APP_PATH/Contents/Resources"
 
+# 复制图标
+if [ -f "$PROJECT_DIR/icon.png" ]; then
+    cp "$PROJECT_DIR/icon.png" "$APP_PATH/Contents/Resources/icon.png"
+    echo "✅ 图标已复制"
+fi
+
 # 编译 Swift 代码
 echo "📦 编译 Swift 代码..."
 swiftc \
@@ -36,17 +42,19 @@ cat > "$APP_PATH/Contents/Info.plist" << 'EOF'
     <key>CFBundleExecutable</key>
     <string>FocusBox</string>
     <key>CFBundleIdentifier</key>
-    <string>com.example.FocusBox</string>
+    <string>com.zhulin.FocusBox</string>
     <key>CFBundleName</key>
     <string>FocusBox</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.png</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
-    <!-- <key>LSUIElement</key> -->
-    <!-- <true/> -->
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
