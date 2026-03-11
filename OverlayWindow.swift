@@ -43,7 +43,7 @@ class OverlayWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         hasShadow = false
-        ignoresMouseEvents = true  // 使用 CGEventTap 处理鼠标事件，窗口只负责显示
+        ignoresMouseEvents = false  // 默认捕获事件，用于检测 mouseDown
         
         // 创建 overlay 视图
         overlayView = OverlayView(frame: screen.frame)
@@ -98,11 +98,25 @@ class OverlayWindow: NSWindow {
     func stopCapturingMouseEvents() {
         isDrawing = false
         print("🖱️ 停止捕获鼠标事件，释放控制权")
+        
+        // 鼠标松开后，让窗口穿透事件
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.ignoresMouseEvents = true
+            print("🖱️ 窗口已设置为穿透模式")
+        }
     }
     
     override func sendEvent(_ event: NSEvent) {
-        // 始终处理事件，让 overlayView 决定是否响应
-        super.sendEvent(event)
+        // 如果正在绘制，正常处理事件
+        if isDrawing {
+            super.sendEvent(event)
+        } else if event.type == .leftMouseDown {
+            // 不绘制时，只处理 mouseDown（用于开始绘制）
+            // 先临时恢复事件捕获
+            ignoresMouseEvents = false
+            super.sendEvent(event)
+        }
+        // 其他事件（dragged, up 等）在不绘制时不处理，让它们穿透
     }
 }
 
@@ -137,8 +151,6 @@ class OverlayView: NSView {
     
     override func mouseDown(with event: NSEvent) {
         guard let delegate = overlayWindow?.mouseDelegate, delegate.isEnabled else { return }
-        // 开始捕获鼠标事件
-        overlayWindow?.startCapturingMouseEvents()
         let location = convert(event.locationInWindow, from: nil)
         delegate.handleMouseDown(location)
     }
@@ -153,10 +165,6 @@ class OverlayView: NSView {
         guard let delegate = overlayWindow?.mouseDelegate, delegate.isEnabled else { return }
         let location = convert(event.locationInWindow, from: nil)
         delegate.handleMouseUp(location)
-        // 鼠标松开后延迟释放控制权（等待绘制完成）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.overlayWindow?.stopCapturingMouseEvents()
-        }
     }
     
     override func draw(_ dirtyRect: NSRect) {
