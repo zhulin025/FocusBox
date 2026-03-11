@@ -43,7 +43,7 @@ class OverlayWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         hasShadow = false
-        ignoresMouseEvents = true  // 默认让鼠标事件穿透到下层应用，只在绘制时临时捕获
+        ignoresMouseEvents = true  // 使用 CGEventTap 处理鼠标事件，窗口只负责显示
         
         // 创建 overlay 视图
         overlayView = OverlayView(frame: screen.frame)
@@ -91,19 +91,17 @@ class OverlayWindow: NSWindow {
     /// 开始捕获鼠标事件（绘制时调用）
     func startCapturingMouseEvents() {
         isDrawing = true
-        ignoresMouseEvents = false
         print("🖱️ 开始捕获鼠标事件")
     }
     
     /// 停止捕获鼠标事件（绘制完成后调用，释放控制权）
     func stopCapturingMouseEvents() {
         isDrawing = false
-        ignoresMouseEvents = true
         print("🖱️ 停止捕获鼠标事件，释放控制权")
     }
     
     override func sendEvent(_ event: NSEvent) {
-        // 将事件传递给 overlayView 处理
+        // 始终处理事件，让 overlayView 决定是否响应
         super.sendEvent(event)
     }
 }
