@@ -164,11 +164,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: "FocusBox")
-            button.action = #selector(toggleMenu)
+            button.action = #selector(toggleFromStatusItem)
             button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         
-        // 创建菜单
+        // 创建菜单（右键点击时显示）
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "显示设置窗口", action: #selector(showSettings), keyEquivalent: "s"))
         menu.addItem(NSMenuItem.separator())
@@ -176,8 +177,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
     }
     
-    @objc private func toggleMenu() {
-        statusItem?.menu?.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: statusItem?.button)
+    @objc private func toggleFromStatusItem() {
+        // 左键点击：切换启用/禁用
+        toggleEnabled()
     }
     
     @objc private func showSettings() {

@@ -2,6 +2,8 @@ import AppKit
 
 class OverlayWindow: NSWindow {
     private var overlayView: OverlayView?
+    weak var mouseDelegate: OverlayWindowMouseDelegate?
+    private var isMonitoring = false
     
     override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStore: NSWindow.BackingStoreType, defer flag: Bool) {
         super.init(contentRect: contentRect, styleMask: style, backing: backingStore, defer: flag)
@@ -40,10 +42,11 @@ class OverlayWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         hasShadow = false
-        ignoresMouseEvents = true  // 鼠标事件穿透到下层应用
+        ignoresMouseEvents = false  // 需要捕获鼠标事件，防止穿透到下层应用
         
         // 创建 overlay 视图
         overlayView = OverlayView(frame: screen.frame)
+        overlayView?.overlayWindow = self
         contentView = overlayView
         
         print("📐 OverlayWindow 尺寸：\(frame)")
@@ -81,6 +84,21 @@ class OverlayWindow: NSWindow {
     func hideRect(delay: TimeInterval = 1.0) {
         overlayView?.hide(delay: delay)
     }
+    
+    // MARK: - 鼠标事件处理
+    
+    override func sendEvent(_ event: NSEvent) {
+        // 将事件传递给 overlayView 处理
+        super.sendEvent(event)
+    }
+}
+
+// 鼠标事件代理协议
+protocol OverlayWindowMouseDelegate: AnyObject {
+    func handleMouseDown(_ point: NSPoint)
+    func handleMouseDragged(_ point: NSPoint)
+    func handleMouseUp(_ point: NSPoint)
+    var isEnabled: Bool { get }
 }
 
 class OverlayView: NSView {
@@ -91,6 +109,7 @@ class OverlayView: NSView {
     var gradientColors: [NSColor] = []
     private var fadeTimer: Timer?
     private var boxAlpha: CGFloat = 1.0
+    var overlayWindow: OverlayWindow?
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -99,6 +118,26 @@ class OverlayView: NSView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    // MARK: - 鼠标事件处理
+    
+    override func mouseDown(with event: NSEvent) {
+        guard let delegate = overlayWindow?.mouseDelegate, delegate.isEnabled else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        delegate.handleMouseDown(location)
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        guard let delegate = overlayWindow?.mouseDelegate, delegate.isEnabled else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        delegate.handleMouseDragged(location)
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        guard let delegate = overlayWindow?.mouseDelegate, delegate.isEnabled else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        delegate.handleMouseUp(location)
     }
     
     override func draw(_ dirtyRect: NSRect) {

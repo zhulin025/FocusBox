@@ -1,14 +1,11 @@
 import AppKit
 import Foundation
 
-class MouseMonitor {
+class MouseMonitor: OverlayWindowMouseDelegate {
     private weak var overlayWindow: OverlayWindow?
     private weak var delegate: MouseMonitorDelegate?
     private var isDragging = false
     private var startPoint: NSPoint = .zero
-    private var leftMouseDownMonitor: Any?
-    private var leftMouseUpMonitor: Any?
-    private var leftMouseDraggedMonitor: Any?
     private let logFile: URL
     var isEnabled: Bool = true
     
@@ -17,7 +14,9 @@ class MouseMonitor {
         self.delegate = delegate
         self.logFile = URL(fileURLWithPath: "/tmp/focusbox.log")
         log("🚀 MouseMonitor 初始化")
-        setupEventMonitors()
+        
+        // 设置鼠标事件代理
+        overlayWindow.mouseDelegate = self
     }
     
     func setEnabled(_ enabled: Bool) {
@@ -40,64 +39,28 @@ class MouseMonitor {
         print(line.trimmingCharacters(in: .newlines))
     }
     
-    deinit {
-        if let monitor = leftMouseDownMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        if let monitor = leftMouseUpMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        if let monitor = leftMouseDraggedMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-    }
+    // MARK: - OverlayWindowMouseDelegate 实现
     
-    private func setupEventMonitors() {
-        log("📡 注册全局鼠标监听器...")
-        
-        // 监听全局鼠标按下事件
-        leftMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-            self?.log("🖱️ 收到 leftMouseDown 事件")
-            self?.handleMouseDown(event)
-        }
-        log("✅ leftMouseDown 监听器已注册")
-        
-        // 监听全局鼠标拖动事件
-        leftMouseDraggedMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] event in
-            self?.log("🖱️ 收到 leftMouseDragged 事件")
-            self?.handleMouseDragged(event)
-        }
-        log("✅ leftMouseDragged 监听器已注册")
-        
-        // 监听全局鼠标释放事件
-        leftMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
-            self?.log("🖱️ 收到 leftMouseUp 事件")
-            self?.handleMouseUp(event)
-        }
-        log("✅ leftMouseUp 监听器已注册")
-    }
-    
-    private func handleMouseDown(_ event: NSEvent) {
+    func handleMouseDown(_ point: NSPoint) {
         guard isEnabled else {
             log("⚠️ 跳过：MouseMonitor 已禁用")
             return
         }
         
-        log("⬇️ handleMouseDown 被调用")
+        log("⬇️ handleMouseDown 被调用，位置：\(point)")
         isDragging = true
-        startPoint = NSEvent.mouseLocation
+        startPoint = point
         log("📍 起点：\(startPoint)")
     }
     
-    private func handleMouseDragged(_ event: NSEvent) {
-        log("➡️ handleMouseDragged 被调用，isDragging=\(isDragging)")
+    func handleMouseDragged(_ point: NSPoint) {
+        log("➡️ handleMouseDragged 被调用，isDragging=\(isDragging), 位置：\(point)")
         guard isDragging, let overlay = overlayWindow, let delegate = delegate else {
-            log("⚠️ 跳过绘制：isDragging=\(isDragging), overlay=\(overlayWindow != nil ? "存在" : "nil")")
+            log("⚠️ 跳过绘制：isDragging=\(isDragging)")
             return
         }
         
-        let currentLocation = NSEvent.mouseLocation
-        let rect = rectFromPoints(startPoint, currentLocation)
+        let rect = rectFromPoints(startPoint, point)
         
         log("📐 矩形：\(rect)")
         
@@ -108,13 +71,12 @@ class MouseMonitor {
         }
     }
     
-    private func handleMouseUp(_ event: NSEvent) {
-        log("⬆️ handleMouseUp 被调用")
+    func handleMouseUp(_ point: NSPoint) {
+        log("⬆️ handleMouseUp 被调用，位置：\(point)")
         guard isDragging, let overlay = overlayWindow, let delegate = delegate else { return }
         
         isDragging = false
-        let currentLocation = NSEvent.mouseLocation
-        let rect = rectFromPoints(startPoint, currentLocation)
+        let rect = rectFromPoints(startPoint, point)
         
         log("📐 最终矩形：\(rect)")
         
