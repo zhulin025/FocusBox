@@ -56,7 +56,7 @@ class OverlayWindow: NSWindow {
     }
     
     func drawRect(_ rect: NSRect, color: NSColor = NSColor.systemBlue, borderWidth: CGFloat = 4.0, theme: ColorTheme = .rainbow) {
-        guard let screen = NSScreen.main else {
+        guard NSScreen.main != nil else {
             print("⚠️ 没有主屏幕")
             return
         }
@@ -78,8 +78,8 @@ class OverlayWindow: NSWindow {
         overlayView?.needsDisplay = true
     }
     
-    func hideRect() {
-        overlayView?.hide()
+    func hideRect(delay: TimeInterval = 1.0) {
+        overlayView?.hide(delay: delay)
     }
 }
 
@@ -176,9 +176,9 @@ class OverlayView: NSView {
         context.restoreGState()
     }
     
-    func hide() {
-        // 1 秒后开始淡出动画
-        fadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+    func hide(delay: TimeInterval = 1.0) {
+        // 指定延迟后开始淡出动画
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.fadeOut()
         }
     }

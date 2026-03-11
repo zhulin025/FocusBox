@@ -122,8 +122,8 @@ class MouseMonitor {
         if rect.width > 10 && rect.height > 10 {
             log("🎨 绘制并准备隐藏...")
             overlay.drawRect(rect, borderWidth: delegate.borderWidth, theme: delegate.colorTheme)
-            // 1 秒后自动隐藏
-            overlay.hideRect()
+            // 使用用户设置的延迟后自动隐藏
+            overlay.hideRect(delay: delegate.fadeDelay)
         }
     }
     

@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayWindow: OverlayWindow?
     private var mouseMonitor: MouseMonitor?
     private var settingsWindow: NSWindow?
+    private var settingsModel: SettingsModel?
     private var screenRecorder: ScreenRecorder?
     
     // 全局快捷键监听
@@ -18,6 +19,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var colorTheme: ColorTheme = .rainbow
     var fadeDelay: TimeInterval = 1.0
     var enableRecording = false  // 是否启用录制功能
+    
+    // 通知代理
+    var notificationCenter: NotificationCenter = .default
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("🚀 FocusBox 启动中...")
@@ -116,6 +120,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isEnabled.toggle()
         print("🔌 FocusBox 已\(isEnabled ? "启用" : "禁用")")
         
+        // 更新设置模型（同步 UI）
+        settingsModel?.isActive = isEnabled
+        
         // 更新状态栏图标
         if let button = statusItem?.button {
             if isEnabled {
@@ -190,11 +197,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         print("🔧 创建设置窗口...")
         
-        // 使用 SwiftUI 创建设置界面
-        let contentView = SettingsView(
+        // 创建设置数据模型
+        settingsModel = SettingsModel(
             isActive: isEnabled,
             borderWidth: borderWidth,
             colorTheme: colorTheme,
+            fadeDelay: fadeDelay,
             onToggle: { [weak self] active in
                 if self?.isEnabled != active {
                     self?.toggleEnabled()
@@ -208,10 +216,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.colorTheme = theme
                 print("🎨 颜色主题：\(theme.rawValue)")
             },
+            onFadeDelayChange: { [weak self] delay in
+                self?.fadeDelay = delay
+                print("⏱️ 淡出延迟：\(delay)秒")
+            },
             onQuit: { [weak self] in
                 self?.quitApp()
             }
         )
+        
+        // 使用 SwiftUI 创建设置界面
+        let contentView = SettingsView(model: settingsModel!)
         
         let hostingController = NSHostingController(rootView: contentView)
         
@@ -236,15 +251,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// SwiftUI 设置界面
-struct SettingsView: View {
-    var isActive: Bool
-    var borderWidth: CGFloat
-    var colorTheme: ColorTheme
+// 设置数据模型（可观察对象）
+class SettingsModel: ObservableObject {
+    @Published var isActive: Bool
+    @Published var borderWidth: CGFloat
+    @Published var colorTheme: ColorTheme
+    @Published var fadeDelay: TimeInterval
+    
     var onToggle: (Bool) -> Void
     var onBorderWidthChange: (CGFloat) -> Void
     var onThemeChange: (ColorTheme) -> Void
+    var onFadeDelayChange: (TimeInterval) -> Void
     var onQuit: () -> Void
+    
+    init(
+        isActive: Bool,
+        borderWidth: CGFloat,
+        colorTheme: ColorTheme,
+        fadeDelay: TimeInterval,
+        onToggle: @escaping (Bool) -> Void,
+        onBorderWidthChange: @escaping (CGFloat) -> Void,
+        onThemeChange: @escaping (ColorTheme) -> Void,
+        onFadeDelayChange: @escaping (TimeInterval) -> Void,
+        onQuit: @escaping () -> Void
+    ) {
+        self.isActive = isActive
+        self.borderWidth = borderWidth
+        self.colorTheme = colorTheme
+        self.fadeDelay = fadeDelay
+        self.onToggle = onToggle
+        self.onBorderWidthChange = onBorderWidthChange
+        self.onThemeChange = onThemeChange
+        self.onFadeDelayChange = onFadeDelayChange
+        self.onQuit = onQuit
+    }
+}
+
+// SwiftUI 设置界面
+struct SettingsView: View {
+    @ObservedObject var model: SettingsModel
     
     var body: some View {
         VStack(spacing: 20) {
@@ -260,29 +305,51 @@ struct SettingsView: View {
             // 状态指示和开关
             HStack {
                 Circle()
-                    .fill(isActive ? Color.green : Color.red)
+                    .fill(model.isActive ? Color.green : Color.red)
                     .frame(width: 10, height: 10)
-                Text(isActive ? "运行中" : "已暂停")
+                Text(model.isActive ? "运行中" : "已暂停")
                     .foregroundColor(.secondary)
                 Spacer()
-                Toggle("", isOn: Binding(
-                    get: { isActive },
-                    set: { onToggle($0) }
-                ))
-                .toggleStyle(.switch)
+                Toggle("", isOn: $model.isActive)
+                    .onChange(of: model.isActive) { newValue in
+                        model.onToggle(newValue)
+                    }
+                    .toggleStyle(.switch)
             }
             
             // 边框粗细
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("边框粗细：\(Int(borderWidth))px")
+                    Text("边框粗细：\(Int(model.borderWidth))px")
                         .fontWeight(.medium)
                     Spacer()
                 }
                 Slider(value: Binding(
-                    get: { Double(borderWidth) },
-                    set: { onBorderWidthChange(CGFloat($0)) }
+                    get: { Double(model.borderWidth) },
+                    set: { newValue in
+                        model.borderWidth = newValue
+                        model.onBorderWidthChange(CGFloat(newValue))
+                    }
                 ), in: 2...20, step: 1)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(8)
+            
+            // 淡出延迟
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("淡出延迟：\(String(format: "%.1f", model.fadeDelay))秒")
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+                Slider(value: Binding(
+                    get: { model.fadeDelay },
+                    set: { newValue in
+                        model.fadeDelay = newValue
+                        model.onFadeDelayChange(newValue)
+                    }
+                ), in: 0.5...5.0, step: 0.5)
             }
             .padding()
             .background(Color.gray.opacity(0.1))
@@ -293,8 +360,11 @@ struct SettingsView: View {
                 Text("颜色主题")
                     .fontWeight(.medium)
                 Picker("主题", selection: Binding(
-                    get: { colorTheme },
-                    set: { onThemeChange($0) }
+                    get: { model.colorTheme },
+                    set: { newValue in
+                        model.colorTheme = newValue
+                        model.onThemeChange(newValue)
+                    }
                 )) {
                     ForEach(ColorTheme.allCases, id: \.self) { theme in
                         Text(theme.rawValue).tag(theme)
@@ -332,7 +402,7 @@ struct SettingsView: View {
             
             // 按钮
             HStack(spacing: 20) {
-                Button(action: onQuit) {
+                Button(action: { model.onQuit() }) {
                     Text("退出")
                         .frame(width: 80)
                 }
@@ -349,6 +419,7 @@ protocol MouseMonitorDelegate: AnyObject {
     var isEnabled: Bool { get }
     var borderWidth: CGFloat { get }
     var colorTheme: ColorTheme { get }
+    var fadeDelay: TimeInterval { get }
     func toggleEnabled()
 }
 
